@@ -57,8 +57,8 @@ def getReconstructedVasculature(distTransformedIm, skeletonIm):
         radius = distTransformedIm[dest]
         selemDisk = morphology.disk(radius)
         mask[dest] = 1
-        reconstructIthImage = ndimage.morphology.binary_dilation(skeletonIm, structure=selemDisk, iterations=-1,
-                                                                 mask=mask)
+        reconstructIthImage = ndimage.morphology.binary_dilation(skeletonIm, structure=selemDisk, mask=mask,
+                                                                 iterations=-1)
         reconstructedImage = np.logical_or(reconstructedImage, reconstructIthImage)
     print("time taken to reconstruct the skeleton is %0.3f seconds" % (time.time() - startt))
     return reconstructedImage
