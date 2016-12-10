@@ -1,89 +1,226 @@
-import numpy as np
-
 import copy
-import operator
+import os
 import time
 
+import matplotlib.pyplot as plt
+import numpy as np
+
 from scipy import ndimage
+from scipy.misc import imread
 from skimage import morphology
 
 """
-   calculates radius as distance of node to nearest zero co-ordinate(edge)
-   if radius is zero it is a single isolated voxel which may be
-   due to noise, itself forms an edge
-   these voxels can be removed through some sanity checks with
-   their presence in the grey scale iage
+Program to find radius of vessels in a 2D image, reconstruct vessels, colorcode the 2D image based on the
+radius of the vessels in the image obtained using skeleton of 2D image and euclidean distance transform
 """
 
 
-def _getBouondariesOfimage(image):
+def _get_boundaries_of_image(binary_image):
     """
-       function to find boundaries/border/edges of the array/image
+    Return boundaries of binary image
+    Parameters
+    ----------
+    binary_image : 2D array
+        binary image of (m, n) shape to find edges/boundaries of
+
+    Returns
+    -------
+    boundary_image : 2D array
+        edges of binary image, has same shape as binary_image
+
+    Notes
+    ------
+    Uses a erosion based method to find edges of objects in a 2D image
     """
-    assert image.shape[0] != 1
-    sElement = ndimage.generate_binary_structure(image.ndim, 1)
-    erode_im = ndimage.morphology.binary_erosion(image, sElement)
-    boundaryIm = image - erode_im
-    assert np.sum(boundaryIm) <= np.sum(image)
-    return boundaryIm
+    assert binary_image.shape[0] != 1
+    sElement = ndimage.generate_binary_structure(binary_image.ndim, 1)
+    erode_image = ndimage.morphology.binary_erosion(binary_image, sElement)
+    boundary_image = binary_image - erode_image
+    assert np.sum(boundary_image) <= np.sum(binary_image)
+    return boundary_image
 
 
-def getRadiusByPointsOnCenterline(inputIm, aspectRatio=None):
+def get_radius_by_points_on_skeleton(binary_image, pix_size=None):
     """
-       find radius
+    Returns an image
+    Parameters
+    ----------
+    binary_image : 2D array
+        binary image of (m, n) shape to find edges/boundaries of
+
+    pix_size : list
+        list of 3 or 2 variables giving voxel size or pixel size, giving resolution in z, y, x
+
+    Returns
+    -------
+    dict_nodes_radius : dict
+        key: non-zero co-ordinate, value : radius
+    skeleton_image : 2D array
+        skeleton/centerline of binary image of same shape as binary image
+    eucledian_radius_image : 2D array
+        2D float array with radius at each point on skeleton, has same shape as binary_image
+
+    Notes
+    ------
+    Calculates radius as distance of node on the skeleton/skeleton
+    to nearest non-zero co-ordinate on the boundaries of the vessel, all
+    points on the skeleton are not included in calculating the nearest
+    non-zero co-ordinate
     """
-    skeletonIm = morphology.skeletonize(inputIm)
-    boundaryIm = _getBouondariesOfimage(inputIm)
-    if aspectRatio is None:
-        aspectRatio = [1] * skeletonIm.ndim
-    skeletonImCopy = copy.deepcopy(skeletonIm)
-    startt = time.time()
-    skeletonImCopy[skeletonIm == 0] = 255
-    skeletonImCopy[boundaryIm == 1] = 0
-    distTransformedIm = ndimage.distance_transform_edt(skeletonImCopy, aspectRatio)
-    listNZI = list(set(map(tuple, np.transpose(np.nonzero(skeletonIm)))))
-    dictOfNodesAndRadius = {item: distTransformedIm[item] for item in listNZI}
-    print("time taken to find radius at nodes is %0.3f seconds" % (time.time() - startt))
-    return dictOfNodesAndRadius, distTransformedIm, skeletonIm
+    skeleton_image = morphology.skeletonize(binary_image)
+    boundary_image = _get_boundaries_of_image(binary_image)
+    if pix_size is None:
+        pix_size = [1] * skeleton_image.ndim
+    skeleton_image_copy = copy.deepcopy(skeleton_image)
+    start = time.time()
+    skeleton_image_copy[skeleton_image == 0] = 255
+    skeleton_image_copy[boundary_image == 1] = 0
+    eucledian_radius_image = ndimage.distance_transform_edt(skeleton_image, pix_size)
+    list_nzi = list(set(map(tuple, np.transpose(np.nonzero(skeleton_image)))))
+    dict_nodes_radius = {item: eucledian_radius_image[item] for item in list_nzi}
+    print("time taken to find radius at nodes is %0.3f seconds" % (time.time() - start))
+    return dict_nodes_radius, eucledian_radius_image, skeleton_image
 
 
-def getReconstructedVasculature(distTransformedIm, skeletonIm):
-    startt = time.time()
-    shapeConstructedIm = np.shape(distTransformedIm)
-    reconstructedImage = np.zeros(shapeConstructedIm, dtype=np.uint8)
-    mask = np.zeros(shapeConstructedIm, dtype=np.uint8)
-    dests = map(tuple, np.transpose(np.nonzero(skeletonIm)))
-    for dest in dests:
-        radius = distTransformedIm[dest]
+def get_reconstructed_vasculature(dict_nodes_radius, eucledian_radius_image, skeleton_image, path=None):
+    """
+    Return 3 vertex clique removed graph
+    Parameters
+    ----------
+    networkxGraph : Networkx graph
+        graph to remove cliques from
+
+    Returns
+    -------
+    networkxGraphAfter : Networkx graph
+        graph with 3 vertex clique edges removed
+
+    Notes
+    ------
+    Removes the longest edge in a 3 Vertex cliques,
+    Special case edges are the edges with equal
+    lengths that form the 3 vertex clique.
+    Doesn't deal with any other cliques
+    """
+    norm_radiuses = get_normalized_values(dict_nodes_radius)
+    start = time.time()
+    shape_reconstructed_image = np.shape(eucledian_radius_image)
+    color_coded_image = np.zeros(shape_reconstructed_image, dtype=np.float32)
+    reconstructed_image = np.zeros(shape_reconstructed_image, dtype=np.uint8)
+    dests = map(tuple, np.transpose(np.nonzero(skeleton_image)))
+    for index, dest in enumerate(dests):
+        radius = eucledian_radius_image[dest]
         selemDisk = morphology.disk(radius)
+        mask = np.zeros(shape_reconstructed_image, dtype=bool)
         mask[dest] = 1
-        reconstructIthImage = ndimage.morphology.binary_dilation(skeletonIm, structure=selemDisk, mask=mask,
-                                                                 iterations=-1)
-        reconstructedImage = np.logical_or(reconstructedImage, reconstructIthImage)
-    print("time taken to reconstruct the skeleton is %0.3f seconds" % (time.time() - startt))
-    return reconstructedImage
+        reconstruct_ith_image = ndimage.morphology.binary_dilation(mask, structure=selemDisk)
+        color_coded_image[reconstruct_ith_image != 0] = norm_radiuses[index]
+        reconstructed_image = np.logical_or(reconstructed_image, reconstruct_ith_image)
+    print("time taken to reconstruct the skeleton is %0.3f seconds" % (time.time() - start))
+    return reconstructed_image, color_coded_image
 
 
-def colorCodeByRadius(dictOfNodesAndRadius, distTransformedIm):
-    channels = 3
-    numDims = distTransformedIm.ndim
-    colorCodedImage = np.zeros(np.shape(distTransformedIm) + (channels,), dtype=np.uint8)
-    sorted_x = sorted(dictOfNodesAndRadius.items(), key=operator.itemgetter(1), reverse=True)
-    for index, (key, value) in enumerate(sorted_x):
-        if numDims == 3:
-            x, y, z = key
-            for channel in range(channels):
-                colorCodedImage[z, y, x, channel] = (index + 1) * channel
-        elif numDims == 2:
-            x, y = key
-            for channel in range(channels):
-                colorCodedImage[y, x, channel] = (index + 1) * channel
-    return colorCodedImage
+def get_normalized_values(dict_nodes_radius):
+    """
+    Return 3 vertex clique removed graph
+    Parameters
+    ----------
+    networkxGraph : Networkx graph
+        graph to remove cliques from
+
+    Returns
+    -------
+    networkxGraphAfter : Networkx graph
+        graph with 3 vertex clique edges removed
+
+    Notes
+    ------
+    Removes the longest edge in a 3 Vertex cliques,
+    Special case edges are the edges with equal
+    lengths that form the 3 vertex clique.
+    Doesn't deal with any other cliques
+    """
+    radiuses = list(dict_nodes_radius.values())
+    min_radius = min(radiuses)
+    max_radius = max(radiuses)
+    return [((radius - min_radius) / (max_radius - min_radius)) * 255 for radius in radiuses]
+
+
+def get_radius_coded_color_vessels(dict_nodes_radius, shape_image, path=None,):
+    """
+    Return 3 vertex clique removed graph
+    Parameters
+    ----------
+    networkxGraph : Networkx graph
+        graph to remove cliques from
+
+    Returns
+    -------
+    networkxGraphAfter : Networkx graph
+        graph with 3 vertex clique edges removed
+
+    Notes
+    ------
+    Removes the longest edge in a 3 Vertex cliques,
+    Special case edges are the edges with equal
+    lengths that form the 3 vertex clique.
+    Doesn't deal with any other cliques
+    """
+    print(shape_image)
+    color_coded_image = np.zeros(shape_image, dtype=np.float32)
+    norm_radiuses = get_normalized_values(dict_nodes_radius)
+    for dest, radius in zip(list(dict_nodes_radius.keys()), norm_radiuses):
+        color_coded_image[dest] = radius
+    if path is not None:
+        plt.imsave(path, color_coded_image, cmap="jet")
+    return color_coded_image
+
+
+def plot_results(*args, **kwargs):
+    """
+    Return 3 vertex clique removed graph
+    Parameters
+    ----------
+    networkxGraph : Networkx graph
+        graph to remove cliques from
+
+    Returns
+    -------
+    networkxGraphAfter : Networkx graph
+        graph with 3 vertex clique edges removed
+
+    Notes
+    ------
+    Removes the longest edge in a 3 Vertex cliques,
+    Special case edges are the edges with equal
+    lengths that form the 3 vertex clique.
+    Doesn't deal with any other cliques
+    """
+    if len(args) % 2 == 0:
+        fig, axes = plt.subplots(nrows=kwargs['nrows'], ncols=kwargs['ncols'])
+    else:
+        fig, axes = plt.subplots(nrows=1, ncols=len(args))
+    for index, (ax, arg) in enumerate(zip(axes.flat, args)):
+        im = ax.imshow(arg, vmin=0, vmax=1, cmap="gray")
+        ax.set_title(kwargs['titles'][index])
+    fig.subplots_adjust(right=0.8)
+    cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+    fig.colorbar(im, cax=cbar_ax)
+    plt.imsave(kwargs['path'], fig, cmap="gray")
+    return fig
+
 
 if __name__ == '__main__':
-    inputIm = np.load(input("enter a path to the CT Projection of vessels------"))
-    aspectRatio = input("please enter resolution of a pixels in 2D with resolution in y and x")
-    aspectRatio = [float(item) for item in aspectRatio.split(' ')]
-    dictOfNodesAndRadius, distTransformedIm, skeletonIm = getRadiusByPointsOnCenterline(inputIm, aspectRatio)
-    getReconstructedVasculature(distTransformedIm, skeletonIm)
-    colorCodeByRadius(dictOfNodesAndRadius, distTransformedIm)
+    path = input("enter a path to the CT Projection of vessels------")
+    input_image = imread(path)
+    pix_size = input("please enter resolution of a pixels in 2D with resolution in y and x")
+    pix_size = [float(item) for item in pix_size.split(' ')]
+    dict_nodes_radius, eucledian_radius_image, skeleton_image = get_radius_by_points_on_skeleton(input_image, pix_size)
+    reconstructed_image = get_reconstructed_vasculature(eucledian_radius_image, skeleton_image)
+    path_to_save = os.path.split(path)[0] + os.sep
+    color_coded_image = get_radius_coded_color_vessels(dict_nodes_radius,
+                                                       path_to_save + "radius_coded_color_vessels.png",
+                                                       skeleton_image.shape)
+    plt_kwargs_dict = {'titles': ['original binary image','skeleton of original image','reconstructed image']}
+    plt_kwargs_dict['path'] = path_to_save + "reconstructed_vessels.png"
+    plot_results(input_image, skeleton_image, reconstructed_image, **plt_kwargs_dict)

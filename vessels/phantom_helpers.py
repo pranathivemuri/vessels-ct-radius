@@ -4,6 +4,25 @@ import cv2
 
 def _create_vessels_2D(cubeEdge, p1, p2, r, noise=False):
     """
+    Return 3 vertex clique removed graph
+    Parameters
+    ----------
+    networkxGraph : Networkx graph
+        graph to remove cliques from
+
+    Returns
+    -------
+    networkxGraphAfter : Networkx graph
+        graph with 3 vertex clique edges removed
+
+    Notes
+    ------
+    Removes the longest edge in a 3 Vertex cliques,
+    Special case edges are the edges with equal
+    lengths that form the 3 vertex clique.
+    Doesn't deal with any other cliques
+    """
+    """
     given two tuples with the start and end points, create a cylinder between these points with radius r
     line goes through point (x0, y0, z0) and in direction of unit vector (u1, u2, u3)
     point on line closest to (x, y, z) is
@@ -32,6 +51,25 @@ def _create_vessels_2D(cubeEdge, p1, p2, r, noise=False):
 
 def _addNoise(stack, level=10, sigma=3):
     """
+    Return 3 vertex clique removed graph
+    Parameters
+    ----------
+    networkxGraph : Networkx graph
+        graph to remove cliques from
+
+    Returns
+    -------
+    networkxGraphAfter : Networkx graph
+        graph with 3 vertex clique edges removed
+
+    Notes
+    ------
+    Removes the longest edge in a 3 Vertex cliques,
+    Special case edges are the edges with equal
+    lengths that form the 3 vertex clique.
+    Doesn't deal with any other cliques
+    """
+    """
     add noise defined by level (+- value, within 255) and sigma (std of gaussian kernel)
     """
     assert sigma % 2 == 1, "only odd kernel sizes are allowed"
@@ -47,6 +85,25 @@ def _addNoise(stack, level=10, sigma=3):
 
 
 def createOneLargeVesselInclined(radius=35, noise=False):
+    """
+    Return 3 vertex clique removed graph
+    Parameters
+    ----------
+    networkxGraph : Networkx graph
+        graph to remove cliques from
+
+    Returns
+    -------
+    networkxGraphAfter : Networkx graph
+        graph with 3 vertex clique edges removed
+
+    Notes
+    ------
+    Removes the longest edge in a 3 Vertex cliques,
+    Special case edges are the edges with equal
+    lengths that form the 3 vertex clique.
+    Doesn't deal with any other cliques
+    """
     cubeEdge = 512
     p1, p2 = (30, 15, 0), (480, 400, cubeEdge - 30)
     maxip = _create_vessels_2D(cubeEdge, p1, p2, radius, noise)
@@ -54,6 +111,25 @@ def createOneLargeVesselInclined(radius=35, noise=False):
 
 
 def createOneSmallVesselInclined(radius=20, noise=False):
+    """
+    Return 3 vertex clique removed graph
+    Parameters
+    ----------
+    networkxGraph : Networkx graph
+        graph to remove cliques from
+
+    Returns
+    -------
+    networkxGraphAfter : Networkx graph
+        graph with 3 vertex clique edges removed
+
+    Notes
+    ------
+    Removes the longest edge in a 3 Vertex cliques,
+    Special case edges are the edges with equal
+    lengths that form the 3 vertex clique.
+    Doesn't deal with any other cliques
+    """
     cubeEdge = 512
     p1, p2 = (154, 138, 160), (94, 380, 400)
     maxip = _create_vessels_2D(cubeEdge, p1, p2, radius, noise)
