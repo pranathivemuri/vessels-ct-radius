@@ -1,5 +1,6 @@
-import numpy as np
 import cv2
+
+import numpy as np
 
 
 def _create_vessels_2D(cubeEdge, p1, p2, r, noise=False):
@@ -30,7 +31,7 @@ def _create_vessels_2D(cubeEdge, p1, p2, r, noise=False):
 
     (x-x0)^2 + (y-y0)^2 = r^2
     """
-    stack = np.ones((cubeEdge, cubeEdge, cubeEdge)) * 20
+    stack = np.ones((cubeEdge, cubeEdge, cubeEdge))
     if p1[0] > p2[0]:  # points need to have the first point have a lower Z
         p1, p2 = p2, p1  # swap
     z = np.arange(p1[0], p2[0])
@@ -43,9 +44,9 @@ def _create_vessels_2D(cubeEdge, p1, p2, r, noise=False):
     stack = stack.astype(np.uint8)
     if noise:
         stack = _addNoise(stack)
-    maxip = np.amax(stack, 0)
-    maxip[maxip <= 20] = 0
-    return maxip.astype(bool)
+    # maxip = np.amax(stack, 0)
+    # maxip[maxip <= 20] = 0
+    # return maxip.astype(bool)
     return stack
 
 
@@ -84,7 +85,7 @@ def _addNoise(stack, level=10, sigma=3):
     return stack
 
 
-def createOneLargeVesselInclined(radius=35, noise=False):
+def createOneLargeVesselInclined(radius=10, noise=False):
     """
     Return 3 vertex clique removed graph
     Parameters
@@ -104,8 +105,8 @@ def createOneLargeVesselInclined(radius=35, noise=False):
     lengths that form the 3 vertex clique.
     Doesn't deal with any other cliques
     """
-    cubeEdge = 512
-    p1, p2 = (30, 15, 0), (480, 400, cubeEdge - 30)
+    cubeEdge = 64
+    p1, p2 = (10, 15, 0), (48, 44, cubeEdge)
     maxip = _create_vessels_2D(cubeEdge, p1, p2, radius, noise)
     return maxip
 
