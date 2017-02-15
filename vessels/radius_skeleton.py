@@ -31,11 +31,9 @@ def get_boundaries_of_image(binary_image):
     ------
     Uses a erosion based method to find edges of objects in a 2D or 3D image
     """
-    assert binary_image.shape[0] != 1
     sElement = ndimage.generate_binary_structure(binary_image.ndim, 1)
     erode_image = ndimage.morphology.binary_erosion(binary_image, sElement)
     boundary_image = binary_image - erode_image
-    assert np.sum(boundary_image) <= np.sum(binary_image)
     return boundary_image
 
 
@@ -67,18 +65,16 @@ def get_radius_2d(binary_image, skeleton_image, boundary_image, pix_size=None):
     Calculates radius as distance of node on the skeleton/skeleton
     to nearest non-zero co-ordinate on the boundaries of the vessel
     """
-    if pix_size is None:
-        pix_size = [1] * skeleton_image.ndim
     skeleton_image_copy = copy.deepcopy(skeleton_image)
     skeleton_image_copy[skeleton_image == 0] = 255
     skeleton_image_copy[boundary_image == 1] = 0
-    eucledian_radius_image = ndimage.distance_transform_edt(skeleton_image_copy, pix_size)
+    eucledian_radius_image = ndimage.distance_transform_edt(skeleton_image_copy, sampling=pix_size)
     list_nzi = map(tuple, np.transpose(np.nonzero(skeleton_image)))
     dict_nodes_radius = {item: eucledian_radius_image[item] for item in list_nzi}
     return dict_nodes_radius
 
 
-def get_radius_slicewise(binary_vol, skeleton_vol, boundary_vol, pix_size=[1, 1], plane=0):
+def get_radius_slicewise(binary_vol, skeleton_vol, boundary_vol, pix_size=None, plane=0):
     """
     Returns a dictionary, image both contatining radius at a non-zero coordinate
     on centerline or skeleton
@@ -109,14 +105,21 @@ def get_radius_slicewise(binary_vol, skeleton_vol, boundary_vol, pix_size=[1, 1]
     dict_nodes_radius = {}
     for i in range(skeleton_vol.shape[plane]):
         if plane == 0:
-            dict_nodes_radius.update(get_radius_2d(binary_vol[i, :, :], skeleton_vol[i, :, :],
-                                                   boundary_vol[i, :, :], pix_size))
+            d = get_radius_2d(binary_vol[i, :, :], skeleton_vol[i, :, :],
+                              boundary_vol[i, :, :], pix_size)
         elif plane == 1:
-            dict_nodes_radius.update(get_radius_2d(binary_vol[:, i, :], skeleton_vol[:, i, :],
-                                                   boundary_vol[:, i, :], pix_size))
+            d = get_radius_2d(binary_vol[:, i, :], skeleton_vol[:, i, :],
+                              boundary_vol[:, i, :], pix_size)
         elif plane == 2:
-            dict_nodes_radius.update(get_radius_2d(binary_vol[:, :, i], skeleton_vol[:, :, i],
-                                                   boundary_vol[:, :, i], pix_size))
+            d = get_radius_2d(binary_vol[:, :, i], skeleton_vol[:, :, i],
+                              boundary_vol[:, :, i], pix_size)
+        new_d = {}
+        for key, value in d.items():
+            listed_tuple = list(key)
+            listed_tuple.insert(plane, i)
+            new_key = tuple(listed_tuple)
+            new_d[new_key] = value
+        dict_nodes_radius.update(new_d)
     return dict_nodes_radius
 
 
@@ -170,7 +173,7 @@ def get_reconstructed_vasculature(dict_nodes_radius, shape):
     return reconstructed_image
 
 
-def get_radius_3d(binary_vol, skeleton_vol, boundary_vol, pix_size):
+def get_radius_3d(binary_vol, skeleton_vol, boundary_vol, pix_size=None):
     d = [0] * 3
     for i in range(3):
         d[i] = get_radius_slicewise(binary_vol, skeleton_vol, boundary_vol, pix_size, i)
