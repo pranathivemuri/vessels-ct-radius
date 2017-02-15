@@ -3,10 +3,8 @@ import copy
 import numpy as np
 
 from scipy import ndimage
-from scipy.misc import imread
 from skimage import morphology
 
-import kesm.analysis.skeleton.thin_volume as thin_volume
 """
 Program to find radius of vessels in a 2D image, reconstruct vessels, colorcode the 2D image based on the
 radius of the vessels in the image obtained using skeleton of 2D image and euclidean distance transform
@@ -68,7 +66,7 @@ def get_radius_2d(binary_image, skeleton_image, boundary_image, pix_size=None):
     skeleton_image_copy = copy.deepcopy(skeleton_image)
     skeleton_image_copy[skeleton_image == 0] = 255
     skeleton_image_copy[boundary_image == 1] = 0
-    eucledian_radius_image = ndimage.distance_transform_edt(skeleton_image_copy, sampling=pix_size)
+    eucledian_radius_image = ndimage.distance_transform_bf(skeleton_image_copy, metric='taxicab', sampling=pix_size)
     list_nzi = map(tuple, np.transpose(np.nonzero(skeleton_image)))
     dict_nodes_radius = {item: eucledian_radius_image[item] for item in list_nzi}
     return dict_nodes_radius
@@ -161,9 +159,9 @@ def get_reconstructed_vasculature(dict_nodes_radius, shape):
     reconstructed_image = np.zeros(shape, dtype=bool)
     for dest, radius in dict_nodes_radius.items():
         if len(shape) == 2:
-            selem = morphology.disk(radius).astype(bool)
+            selem = morphology.disk(int(radius)).astype(bool)
         elif len(shape) == 3:
-            selem = morphology.ball(radius).astype(bool)
+            selem = morphology.ball(int(radius)).astype(bool)
         reconstructed_ith_image = np.zeros(shape, dtype=bool)
         reconstructed_ith_image[dest] = 1
         reconstructed_ith_image = ndimage.morphology.binary_dilation(reconstructed_ith_image, structure=selem)
@@ -179,23 +177,3 @@ def get_radius_3d(binary_vol, skeleton_vol, boundary_vol, pix_size=None):
         d[i] = get_radius_slicewise(binary_vol, skeleton_vol, boundary_vol, pix_size, i)
     dict_nodes_radius = get_max_dict(d)
     return dict_nodes_radius
-
-
-if __name__ == '__main__':
-    path = input("enter a path to the 2D array of vessels------")
-    binary_image = imread(path)
-    pix_size = input("please enter resolution of a pixels in 2D with resolution in x and y")
-    pix_size = [float(item) for item in pix_size.split(' ')]
-    skeleton_image = morphology.skeletonize_2d(binary_image)
-    boundary_image = get_boundaries_of_image(binary_image)
-    dict_nodes_radius = get_radius_2d(binary_image, skeleton_image, boundary_image, pix_size)
-    reconstructed_image = get_reconstructed_vasculature(dict_nodes_radius, binary_image.shape)
-
-    path = input("enter a path to 3D binary vasculature volume")
-    binary_vol = np.load(path)
-    pix_size = input("please enter resolution of a pixels in 3D with resolution in z, x, and y")
-    pix_size = [float(item) for item in pix_size.split(' ')]
-    skeleton_vol = thin_volume.get_thinned(binary_vol)
-    boundary_vol = get_boundaries_of_image(binary_vol)
-    dict_nodes_radius = get_radius_3d(binary_vol, skeleton_vol, boundary_vol, pix_size)
-    reconstructed_volume = get_reconstructed_vasculature(dict_nodes_radius, binary_vol.shape)
