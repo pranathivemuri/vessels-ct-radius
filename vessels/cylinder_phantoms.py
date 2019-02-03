@@ -145,7 +145,6 @@ def add_speckle(stack, level=10, sigma=5):
 
    """
     np.testing.assert_array_equal(sigma % 2, 1)
-    np.testing.assert_array_equal(stack.dtype, np.uint8)
 
     noise = np.random.randint(0, level * 2, stack.shape, dtype=np.uint8)
     blur = blur_volume(noise, sigma=sigma)  # blur the first level

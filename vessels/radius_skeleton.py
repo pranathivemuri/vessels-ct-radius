@@ -3,7 +3,7 @@ import copy
 import numpy as np
 
 from scipy import ndimage
-from skimage import morphology
+import skimage.morphology as morphology
 
 """
 Program to find radius of vessels in a 2D image, reconstruct vessels, colorcode the 2D image based on the
@@ -115,8 +115,7 @@ def get_radius_slicewise(binary_vol, skeleton_vol, boundary_vol, pix_size=None, 
         for key, value in d.items():
             listed_tuple = list(key)
             listed_tuple.insert(plane, i)
-            new_key = tuple(listed_tuple)
-            new_d[new_key] = value
+            new_d[tuple(listed_tuple)] = value
         dict_nodes_radius.update(new_d)
     return dict_nodes_radius
 
