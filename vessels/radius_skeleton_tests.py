@@ -1,11 +1,11 @@
 import nose.tools
 import numpy as np
-from skimage import morphology, measure
+import skimage.morphology as morphology
+import skimage.measure as measure
+import sklearn.metrics
 
-import kesm.analysis.skeleton.radius_skeleton as radius_skeleton
-import kesm.projects.KESMAnalysis.metrics as metrics
-import kesm.analysis.phantoms.vessel_phantom as vessel_phantom
-import kesm.analysis.skeleton.thin_volume as thin_volume
+import vessels.radius_skeleton as radius_skeleton
+import vessels.cylinder_phantoms as cylinder_phantoms
 
 
 def _helper_radius(binary, radius=None, delta=1):
@@ -14,7 +14,7 @@ def _helper_radius(binary, radius=None, delta=1):
         skeleton = morphology.skeletonize(binary)
         dict_nodes_radius = radius_skeleton.get_radius_2d(binary, skeleton, boundary)
     elif binary.ndim == 3:
-        skeleton = thin_volume.get_thinned(binary.astype(bool))
+        skeleton = morphology.skeletonize_3d(binary.astype(bool))
         dict_nodes_radius = radius_skeleton.get_radius_3d(binary, skeleton, boundary, None)
     if radius is not None:
         obtained_radius = np.mean(list(dict_nodes_radius.values()))
@@ -48,12 +48,12 @@ def test_get_radius_2d_disk():
 
 def test_get_radius_2d_phantom():
     radius = 10
-    phantom = np.amax(vessel_phantom.vessel_diagonal(radius=radius), 0)
+    phantom = np.amax(cylinder_phantoms.vessel_diagonal(radius=radius), 0)
     _helper_radius(phantom, radius)
 
 
 def test_get_max_dict():
-    list_of_dicts = [{'a':1}, {'a': 10}, {'a':100}]
+    list_of_dicts = [{'a': 1}, {'a': 10}, {'a': 100}]
     expected = {'a': 100}
     obtained = radius_skeleton.get_max_dict(list_of_dicts)
     nose.tools.assert_dict_equal(obtained, expected)
@@ -64,7 +64,7 @@ def test_get_reconstructed_vasculature_2d_disk():
     original = morphology.disk(radius)
     dict_nodes_radius = _helper_radius(original, radius)
     predicted = radius_skeleton.get_reconstructed_vasculature(dict_nodes_radius, original.shape)
-    nose.tools.assert_equal(metrics.f1_score(original, predicted), 1)
+    nose.tools.assert_equal(sklearn.metrics.f1_score(original.flatten(), predicted.flatten()), 1)
 
 
 def test_get_reconstructed_vasculature_3d_ball():
@@ -72,23 +72,23 @@ def test_get_reconstructed_vasculature_3d_ball():
     original = morphology.ball(radius)
     dict_nodes_radius = _helper_radius(original, radius)
     predicted = radius_skeleton.get_reconstructed_vasculature(dict_nodes_radius, original.shape)
-    nose.tools.assert_equal(metrics.f1_score(original, predicted), 1)
+    nose.tools.assert_equal(sklearn.metrics.f1_score(original.flatten(), predicted.flatten()), 1)
 
 
 def test_get_reconstructed_vasculature_2d_phantom():
     # 0.94
-    original = np.amax(vessel_phantom.vessel_tree(cube_edge=64), 0)
+    original = np.amax(cylinder_phantoms.vessel_tree(cube_edge=64), 0)
     dict_nodes_radius = _helper_radius(original)
     predicted = radius_skeleton.get_reconstructed_vasculature(dict_nodes_radius, original.shape)
-    nose.tools.assert_greater_equal(metrics.f1_score(original, predicted), 0.7)
+    nose.tools.assert_greater_equal(sklearn.metrics.f1_score(original.flatten(), predicted.flatten()), 0.7)
 
 
 def test_get_reconstructed_vasculature_3d_phantom():
     # 0.80
-    original = vessel_phantom.vessel_tree(cube_edge=64)
+    original = cylinder_phantoms.vessel_tree(cube_edge=64)
     dict_nodes_radius = _helper_radius(original)
     predicted = radius_skeleton.get_reconstructed_vasculature(dict_nodes_radius, original.shape)
-    nose.tools.assert_greater_equal(metrics.f1_score(original, predicted), 0.7)
+    nose.tools.assert_greater_equal(sklearn.metrics.f1_score(original.flatten(), predicted.flatten()), 0.7)
 
 
 def test_get_radius_3d_ball():
@@ -99,5 +99,5 @@ def test_get_radius_3d_ball():
 def test_get_radius_3d_phantom():
     # delta is now 2 obtained radius = 3.51
     radius = 5
-    phantom = vessel_phantom.vessel_diagonal(cube_edge=64, radius=radius)
+    phantom = cylinder_phantoms.vessel_diagonal(cube_edge=64, radius=radius)
     _helper_radius(phantom, radius, 2)
