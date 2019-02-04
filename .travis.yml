@@ -4,7 +4,11 @@ python:
 # command to install dependencies
 install:
   - pip3 install -r requirements.txt
-# command to run tests
-script: nosetests -xs
+script:
+  # command to lint code
+  - flake8 --config .flake8
+  # command to run tests
+  - nosetests --with-coverage --cover-erase --cover-html
+
 # operating system tested on
 os: linux
