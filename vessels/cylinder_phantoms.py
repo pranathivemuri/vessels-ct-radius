@@ -1,5 +1,5 @@
-import numpy as np
 import cv2
+import numpy as np
 
 """
 Test library to create 3D raster volume of vessels
