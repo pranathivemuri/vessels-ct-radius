@@ -215,8 +215,9 @@ def vessel_diagonal(cube_edge=512,
         ndarray of type dtype
     """
     if 2 * radius > cube_edge:
-        raise ValueError("Given radius '{}' does not fit in cube edge length {}"
-                         .format(radius, cube_edge))
+        raise ValueError(
+            f"Given radius '{radius}' does not fit in cube edge length {cube_edge}"
+        )
     stack = np.ones((cube_edge, cube_edge, cube_edge), dtype=dtype) * background
     cylinder = [
         ((0, 0, 0), (cube_edge, cube_edge, cube_edge), radius)
@@ -332,5 +333,6 @@ def binmask_accuracy(original_binary_mask, predicted_binary_mask):
 
 def assert_binmask_similar(expected, observed, accuracy=0.95):
     similarity = binmask_accuracy(expected, observed)
-    assert similarity >= accuracy, \
-        "Binmask similarity {} < target accuracy {}".format(similarity, accuracy)
+    assert (
+        similarity >= accuracy
+    ), f"Binmask similarity {similarity} < target accuracy {accuracy}"

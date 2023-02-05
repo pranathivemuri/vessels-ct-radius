@@ -31,8 +31,7 @@ def get_boundaries_of_image(binary_image):
     """
     sElement = ndimage.generate_binary_structure(binary_image.ndim, 1)
     erode_image = ndimage.morphology.binary_erosion(binary_image, sElement)
-    boundary_image = binary_image - erode_image
-    return boundary_image
+    return binary_image - erode_image
 
 
 def get_radius_2d(binary_image, skeleton_image, boundary_image, pix_size=None):
@@ -68,8 +67,7 @@ def get_radius_2d(binary_image, skeleton_image, boundary_image, pix_size=None):
     skeleton_image_copy[boundary_image == 1] = 0
     eucledian_radius_image = ndimage.distance_transform_bf(skeleton_image_copy, metric='taxicab', sampling=pix_size)
     list_nzi = map(tuple, np.transpose(np.nonzero(skeleton_image)))
-    dict_nodes_radius = {item: eucledian_radius_image[item] for item in list_nzi}
-    return dict_nodes_radius
+    return {item: eucledian_radius_image[item] for item in list_nzi}
 
 
 def get_radius_slicewise(binary_vol, skeleton_vol, boundary_vol, pix_size=None, plane=0):
@@ -116,7 +114,7 @@ def get_radius_slicewise(binary_vol, skeleton_vol, boundary_vol, pix_size=None, 
             listed_tuple = list(key)
             listed_tuple.insert(plane, i)
             new_d[tuple(listed_tuple)] = value
-        dict_nodes_radius.update(new_d)
+        dict_nodes_radius |= new_d
     return dict_nodes_radius
 
 
@@ -134,10 +132,10 @@ def get_max_dict(list_of_dicts):
         given a list of dicts having common keys,
         one dict is returned with maximum value at the common keys
     """
-    max_dict = {}
-    for key, val in list_of_dicts[0].items():
-        max_dict[key] = max(list_of_dicts[i][key] for i in range(len(list_of_dicts)))
-    return max_dict
+    return {
+        key: max(list_of_dicts[i][key] for i in range(len(list_of_dicts)))
+        for key, val in list_of_dicts[0].items()
+    }
 
 
 def get_reconstructed_vasculature(dict_nodes_radius, shape):
@@ -174,5 +172,4 @@ def get_radius_3d(binary_vol, skeleton_vol, boundary_vol, pix_size=None):
     d = [0] * 3
     for i in range(3):
         d[i] = get_radius_slicewise(binary_vol, skeleton_vol, boundary_vol, pix_size, i)
-    dict_nodes_radius = get_max_dict(d)
-    return dict_nodes_radius
+    return get_max_dict(d)
